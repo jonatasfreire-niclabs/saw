@@ -1,47 +1,55 @@
-***Alteração - RDM 334150 - Início
-            DATA(lt_ped) = gt_ef_ped_sem_mov[].
-            DELETE lt_ped WHERE matnr NE t_saida-matnr
-                             OR werks NE t_saida-werks.
+          CLEAR: gt_ef_op_det[], gt_fieldcat[], lt_excl[], ls_excl.
+            READ TABLE t_saida INDEX rs_selfield-tabindex.
 
-            IF lt_ped[] IS NOT INITIAL.
+            SELECT a~aufnr b~zmatat AS matnr c~gamng AS qtd a~erdat a~objnr
+              INTO CORRESPONDING FIELDS OF TABLE gt_ef_op_det
+              FROM aufk AS a
+              INNER JOIN zrnppt_popa AS b ON b~znumpp = a~aufnr
+              LEFT JOIN afko AS c ON c~aufnr = a~aufnr
+             WHERE b~zmatat = t_saida-matnr.
 
-              SELECT DISTINCT a~ebeln a~ebelp a~matnr
-                a~menge AS qtd
-                b~bedat AS data
-                a~banfn a~werks
-                INTO CORRESPONDING FIELDS OF TABLE gt_ef_ped_det
-                FROM ekpo AS a
-                INNER JOIN ekko AS b ON b~ebeln = a~ebeln
-               WHERE a~matnr = t_saida-matnr
-                 AND a~werks = t_saida-werks
-                 AND a~elikz NE abap_true
-                 AND a~loekz EQ abap_false
-                 AND a~pstyp EQ '3'
-                 AND b~bstyp = 'F'.
+            LOOP AT gt_ef_op_det INTO gs_ef_op_det.
+              v_tab_aux = sy-tabix.
 
-              IF gt_ef_ped_det[] IS NOT INITIAL.   "Proteção do FOR ALL ENTRIES
+              SELECT SINGLE stat
+                INTO lv_retorno
+                FROM jest
+               WHERE objnr = gs_ef_op_det-objnr
+                 AND stat  = 'I0001'
+                 AND inact = ''.
 
-                SORT gt_ef_ped_det BY ebeln ebelp.
-
-                SELECT DISTINCT ebeln, ebelp
-                  INTO TABLE @DATA(lt_ekbe)
-                  FROM ekbe
-                  FOR ALL ENTRIES IN @gt_ef_ped_det
-                  WHERE ebeln EQ @gt_ef_ped_det-ebeln
-                    AND ebelp EQ @gt_ef_ped_det-ebelp.
-
-                SORT lt_ekbe BY ebeln ebelp.
-
-                LOOP AT gt_ef_ped_det INTO DATA(ls_ekpo).
-                  DATA(lv_tabix) = sy-tabix.
-                  READ TABLE lt_ekbe WITH KEY ebeln = ls_ekpo-ebeln
-                                              ebelp = ls_ekpo-ebelp
-                                              TRANSPORTING NO FIELDS
-                                              BINARY SEARCH.
-                  IF sy-subrc EQ 0.
-                    DELETE gt_ef_ped_det INDEX lv_tabix.
-                  ENDIF.
-                ENDLOOP.
-
+              IF lv_retorno IS INITIAL.
+                SELECT SINGLE stat
+                  INTO lv_retorno
+                  FROM jest
+                 WHERE objnr = gs_ef_op_det-objnr
+                   AND stat  = 'I0002'
+                   AND inact = ''.
               ENDIF.
-***Alteração - RDM 334150 - Fim
+
+              IF lv_retorno IS INITIAL.
+                DELETE gt_ef_op_det INDEX v_tab_aux.
+                CONTINUE.
+              ENDIF.
+
+              CLEAR lv_retorno.
+              SELECT SINGLE stat
+                INTO lv_retorno
+                FROM jest
+               WHERE objnr = gs_ef_op_det-objnr
+                 AND stat  = 'I0012'
+                 AND inact = ''.
+              IF sy-subrc = 0.
+                DELETE gt_ef_op_det INDEX v_tab_aux.
+                CONTINUE.
+              ENDIF.
+
+              SELECT SINGLE znumpp
+                INTO lv_retorno
+                FROM zrnppt_pconfit
+               WHERE znumpp = gs_ef_op_det-aufnr.
+              IF sy-subrc = 0.
+                DELETE gt_ef_op_det INDEX v_tab_aux.
+                CONTINUE.
+              ENDIF.
+            ENDLOOP.
