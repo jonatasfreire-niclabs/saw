@@ -1,28 +1,52 @@
-***Alteração - RDM 334150 - Início - Seleção OP sem movimentação
-            CLEAR: gt_ef_op_det[], gt_fieldcat[], lt_excl[], ls_excl.
-            READ TABLE t_saida INDEX rs_selfield-tabindex.
+FORM f_op_det_user_command USING r_ucomm    TYPE sy-ucomm
+                                 rs_selfield TYPE slis_selfield.
 
-            DATA lt_pp_det TYPE ty_t_ef_pp.
-            CLEAR lt_pp_det.
+  DATA ls_opt TYPE ctu_params.   "RDM 334150
 
-            SELECT b~znumpp AS aufnr, b~znumoa, b~zmatat AS matnr,
-                   a~objnr, a~erdat, c~gamng
-              FROM aufk AS a
-              INNER JOIN zrnppt_popa AS b ON b~znumpp = a~aufnr
-              LEFT OUTER JOIN afko AS c ON c~aufnr = a~aufnr
-              WHERE b~zmatat = @t_saida-matnr
-              INTO CORRESPONDING FIELDS OF TABLE @lt_pp_det.
+  CASE r_ucomm.
+    WHEN '&IC1'.  "Hotspot / duplo-clique no AUFNR → CO03
+      READ TABLE gt_ef_op_det INTO gs_ef_op_det INDEX rs_selfield-tabindex.
+      IF sy-subrc = 0 AND rs_selfield-fieldname = 'AUFNR'.
+        SET PARAMETER ID 'ANR' FIELD gs_ef_op_det-aufnr.
+        CALL TRANSACTION 'CO03' AND SKIP FIRST SCREEN.
+      ENDIF.
 
-            " Mesma regra da contagem
-            PERFORM f_ef_filtra_pp CHANGING lt_pp_det.
+***Alteração - RDM 334150 - Início - ZAGRUPA/ZDPR com os dados da linha
+    WHEN 'ZAGRUPA'.  "Botão → ZAGRUPA (cancelamento total da OP)
+      READ TABLE gt_ef_op_det INTO gs_ef_op_det INDEX rs_selfield-tabindex.
+      IF sy-subrc <> 0.
+        MESSAGE 'Posicione o cursor na linha da OP desejada' TYPE 'I'.
+        RETURN.
+      ENDIF.
 
-            LOOP AT lt_pp_det INTO DATA(ls_pp_det).
-              CLEAR gs_ef_op_det.
-              gs_ef_op_det-aufnr = ls_pp_det-aufnr.
-              gs_ef_op_det-matnr = ls_pp_det-matnr.
-              gs_ef_op_det-qtd   = ls_pp_det-gamng.
-              gs_ef_op_det-erdat = ls_pp_det-erdat.
-              gs_ef_op_det-objnr = ls_pp_det-objnr.
-              APPEND gs_ef_op_det TO gt_ef_op_det.
-            ENDLOOP.
+      FREE t_bdc.
+      PERFORM insere_bdc USING 'X' 'PROGRAMA_ZAGRUPA'  'TELA_ZAGRUPA'.
+      PERFORM insere_bdc USING ''  'CAMPO_ORDEM_AGRUP' gs_ef_op_det-znumoa.
+      PERFORM insere_bdc USING ''  'RADIO_CANC_TOTAL'  'X'.
+      PERFORM insere_bdc USING ''  'CAMPO_CENTRO'      gs_ef_op_det-werks.
+
+      CLEAR ls_opt.
+      ls_opt-dismode = 'E'.   "Abre a tela já preenchida
+      ls_opt-nobiend = 'X'.   "O usuário confere e executa
+      CALL TRANSACTION 'ZAGRUPA' USING t_bdc OPTIONS FROM ls_opt.
+
+    WHEN 'ZDPR'.  "Botão → ZDPR
+      READ TABLE gt_ef_op_det INTO gs_ef_op_det INDEX rs_selfield-tabindex.
+      IF sy-subrc <> 0.
+        MESSAGE 'Posicione o cursor na linha da OP desejada' TYPE 'I'.
+        RETURN.
+      ENDIF.
+
+      FREE t_bdc.
+      PERFORM insere_bdc USING 'X' 'PROGRAMA_ZDPR'     'TELA_ZDPR'.
+      PERFORM insere_bdc USING ''  'CAMPO_DIARIO'      gs_ef_op_det-diario.
+      PERFORM insere_bdc USING ''  'CAMPO_CENTRO_DPR'  gs_ef_op_det-werks.
+
+      CLEAR ls_opt.
+      ls_opt-dismode = 'E'.
+      ls_opt-nobiend = 'X'.
+      CALL TRANSACTION 'ZDPR' USING t_bdc OPTIONS FROM ls_opt.
 ***Alteração - RDM 334150 - Fim
+
+  ENDCASE.
+ENDFORM.
