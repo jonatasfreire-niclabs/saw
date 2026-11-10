@@ -1,3 +1,6 @@
+
+    IF sy-subrc EQ 0.
+
       SORT lt_ekpo BY matnr werks ebeln ebelp.
 
 ***Alteração - RDM 334150 - Início - qualquer registro na EKBE exclui o item
