@@ -1,3 +1,13 @@
+ DELETE ADJACENT DUPLICATES FROM lt_chaves COMPARING matnr.
+
+  SELECT zmatat znumpp
+    INTO TABLE lt_popa
+    FROM zrnppt_popa
+    FOR ALL ENTRIES IN lt_chaves_mw
+    WHERE zmatat = lt_chaves_mw-matnr.
+
+  DATA(lt_popa_aux) = lt_popa[].
+  SORT lt_popa_aux BY znumpp.
   DELETE ADJACENT DUPLICATES FROM lt_popa_aux COMPARING znumpp.
 
   IF lt_popa[] IS NOT INITIAL.
